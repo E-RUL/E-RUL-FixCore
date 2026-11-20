@@ -1,0 +1,6 @@
+{
+  "entry": "com/tenkeitech/mixin/ae2/CraftingCPUClusterMixin.class",
+  "originalSha256": "ED2E7A4F3F8D119C9423045FE67B119CD34E139B1C2F45A655AB6AE1F0EB63F6",
+  "patchedSha256": "F18CB88C5475D19E7BDCD092EF5A0A1099D8115601553F5C2E3532344200E132",
+  "change": "1.1.5 WrapOperation require 1 -> 0"
+}
