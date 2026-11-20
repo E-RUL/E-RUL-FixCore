@@ -9,7 +9,9 @@
     "MixinPumpQueueParallel"
   ],
   "client": [
-    "MixinBqItemSelectionInput"
+    "MixinBqItemSelectionInput",
+    "MixinBqQuestTextOverrides",
+    "MixinBqItemPinyin"
   ],
   "injectors": {
     "defaultRequire": 1
