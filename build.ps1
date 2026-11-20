@@ -143,6 +143,9 @@ $modJars = foreach ($entry in $requiredMods.GetEnumerator()) {
 }
 $gtnhLib = $mods | Where-Object Name -Like 'gtnhlib-*.jar' | Select-Object -First 1
 if ($gtnhLib) { $modJars += $gtnhLib.FullName }
+# Modern GTNH supplies the legacy LWJGL keyboard API in lwjgl3ify.
+$lwjgl3ify = $mods | Where-Object Name -Like 'lwjgl3ify-*.jar' | Select-Object -First 1
+if ($lwjgl3ify) { $modJars += $lwjgl3ify.FullName }
 
 $libraryJars = @(Get-ChildItem -LiteralPath $LibrariesDir -Recurse -Filter '*.jar' -File |
     Where-Object Name -NotMatch $auxiliaryJar | Sort-Object FullName -Descending)

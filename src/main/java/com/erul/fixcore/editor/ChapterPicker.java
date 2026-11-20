@@ -4,5 +4,22 @@ public final class ChapterPicker extends WorkbenchScreen {
  private final Consumer<UUID> choose;private int page;private String query="";private WorkbenchField search;
  public ChapterPicker(GuiScreen parent,Consumer<UUID> choose){super(parent);this.choose=choose;useMargins(false);}
  private void btn(int x,int y,int w,String s,Runnable r){addPanel(new PanelButton(new GuiRectangle(x,y,w,18),0,s).setClickAction(b->r.run()));}
- @Override public void initPanel(){super.initPanel();int w=getTransform().getWidth(),h=getTransform().getHeight();addPanel(new PanelTextBox(new GuiRectangle(12,8,w-24,16),"§b按章节分类 · 选择对应任务网格"));search=new WorkbenchField(new GuiRectangle(12,30,w-112,22),query);addPanel(search);btn(w-94,30,82,"搜索章节",()->{query=search.getRawText();page=0;initPanel();});List<Map.Entry<UUID,IQuestLine>> entries=new ArrayList<>(QuestLineDatabase.INSTANCE.entrySet());entries.removeIf(e->!WorkbenchSearch.matches(QuestTranslation.translateQuestLineName(e.getKey(),e.getValue()),null,query));int rows=Math.max(1,(h-140)/24);page=Math.max(0,Math.min(page,Math.max(0,(entries.size()-1)/rows)));for(int i=page*rows;i<entries.size()&&i<(page+1)*rows;i++){Map.Entry<UUID,IQuestLine> e=entries.get(i);btn(12,60+(i-page*rows)*24,w-24,QuestTranslation.translateQuestLineName(e.getKey(),e.getValue())+" · "+e.getValue().size()+" 个任务",()->{choose.accept(e.getKey());displayParent();});}btn(12,h-62,120,"新建章节",()->net.minecraft.client.Minecraft.func_71410_x().func_147108_a(new ChapterCreateScreen(this,id->{choose.accept(id);query="";page=0;})));btn(12,h-35,78,"全部任务",()->{choose.accept(null);displayParent();});btn(94,h-35,78,"上一页",()->{page--;initPanel();});btn(176,h-35,78,"下一页",()->{page++;initPanel();});btn(258,h-35,78,"返回",()->displayParent());}
+ @Override public void initPanel(){super.initPanel();int w=getTransform().getWidth(),h=getTransform().getHeight();addPanel(new PanelTextBox(new GuiRectangle(12,8,w-24,16),"§b按章节分类 · 选择对应任务网格"));search=new WorkbenchField(new GuiRectangle(12,30,w-112,22),query);addPanel(search);btn(w-94,30,82,"搜索章节",()->{query=search.getRawText();page=0;initPanel();});
+     WorkbenchSearch searchQuery = new WorkbenchSearch(query);
+     List<Map.Entry<UUID, String>> entries = new ArrayList<>();
+     for (Map.Entry<UUID, IQuestLine> chapter : QuestLineDatabase.INSTANCE.entrySet()) {
+         String title = QuestTranslation.translateQuestLineName(chapter.getKey(), chapter.getValue());
+         if (searchQuery.matches(title, null)) {
+             entries.add(new AbstractMap.SimpleImmutableEntry<>(chapter.getKey(), title));
+         }
+     }
+     int rows = Math.max(1, (h-140)/24);
+     page = Math.max(0, Math.min(page, Math.max(0, (entries.size()-1)/rows)));
+     for (int row = 0; row < rows && page * rows + row < entries.size(); row++) {
+         Map.Entry<UUID, String> entry = entries.get(page * rows + row);
+         UUID id = entry.getKey();
+         String text = entry.getValue() + " · " + QuestLineDatabase.INSTANCE.get(id).size() + " 个任务";
+         btn(12, 60 + row * 24, w-24, text, () -> { choose.accept(id); displayParent(); });
+     }
+     btn(12,h-62,120,"新建章节",()->net.minecraft.client.Minecraft.func_71410_x().func_147108_a(new ChapterCreateScreen(this,id->{choose.accept(id);query="";page=0;})));btn(12,h-35,78,"全部任务",()->{choose.accept(null);displayParent();});btn(94,h-35,78,"上一页",()->{page--;initPanel();});btn(176,h-35,78,"下一页",()->{page++;initPanel();});btn(258,h-35,78,"返回",()->displayParent());}
 }
