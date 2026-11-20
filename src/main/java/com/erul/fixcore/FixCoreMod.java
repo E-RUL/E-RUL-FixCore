@@ -26,6 +26,18 @@ public class FixCoreMod {
     private static final Logger LOG = LogManager.getLogger(MODID);
 
     @Mod.EventHandler
+    public void init(cpw.mods.fml.common.event.FMLInitializationEvent event) {
+        if ("B".equals(Version.BRANCH) && cpw.mods.fml.common.FMLCommonHandler.instance().getSide().isClient()
+            && cpw.mods.fml.common.Loader.isModLoaded("betterquesting")) {
+            try {
+                Class.forName("com.erul.fixcore.editor.EditorClient").getMethod("register").invoke(null);
+            } catch (ReflectiveOperationException e) {
+                throw new IllegalStateException("Cannot register E-RUL BQ editor", e);
+            }
+        }
+    }
+
+    @Mod.EventHandler
     public void preInit(FMLPreInitializationEvent event) {
         FixRegistry.report(LOG);
     }

@@ -32,7 +32,13 @@ foreach ($dep in @($forge, $unimixins, $gregtech, $log4jApi)) {
     Write-Host ("  dep: " + (Split-Path $dep -Leaf))
 }
 $modularui2 = (Get-ChildItem (Join-Path $mcDir 'mods') -Filter 'modularui2-*.jar' -File | Select-Object -First 1).FullName
-$compileCp = "$forge;$unimixins;$gregtech;$log4jApi;$modularui2"
+$editorCompile = 'E:\MC\_work\90_待清理\bq-editor-compile'
+$mcSrg = Join-Path $editorCompile 'minecraft-srg.jar'
+$forgeSrg = Join-Path $editorCompile 'forge-srg.jar'
+if (-not (Test-Path -LiteralPath $mcSrg) -or -not (Test-Path -LiteralPath $forgeSrg)) { throw 'Run prepare-bq-editor-compile-20261120.py and RemapCompileJar first; mapped jars are compile-only' }
+$bq = (Get-ChildItem (Join-Path $mcDir 'mods') -Filter 'BetterQuesting-*.jar' -File | Select-Object -First 1).FullName
+$libraryCp = (Get-ChildItem 'E:\MC\.minecraft\libraries' -Recurse -Filter '*.jar' -File | ForEach-Object FullName) -join ';'
+$compileCp = "$mcSrg;$forgeSrg;$unimixins;$gregtech;$log4jApi;$modularui2;$bq;$libraryCp"
 
 # ---- clean ----
 foreach ($d in @('build\classes', 'build\stubclasses', 'build\jar', 'dist')) {

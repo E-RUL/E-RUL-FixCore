@@ -31,6 +31,7 @@ public final class FixRegistry {
         list.add(new GtnlModListModule());
         list.add(new FissionTooltipModule());
         list.add(new com.erul.fixcore.module.PumpQueueParallelModule());
+        list.add(new com.erul.fixcore.module.BqWorkbenchModule());
         list.add(new Log4jThrowableModule());
         list.add(new MessTechMetadataModule());
         list.add(new GtnrDuplicateMixinModule());
