@@ -37,8 +37,9 @@ $mcSrg = Join-Path $editorCompile 'minecraft-srg.jar'
 $forgeSrg = Join-Path $editorCompile 'forge-srg.jar'
 if (-not (Test-Path -LiteralPath $mcSrg) -or -not (Test-Path -LiteralPath $forgeSrg)) { throw 'Run prepare-bq-editor-compile-20261120.py and RemapCompileJar first; mapped jars are compile-only' }
 $bq = (Get-ChildItem (Join-Path $mcDir 'mods') -Filter 'BetterQuesting-*.jar' -File | Select-Object -First 1).FullName
+$lwjgl3ify = (Get-ChildItem (Join-Path $mcDir 'mods') -Filter 'lwjgl3ify-*.jar' -File | Select-Object -First 1).FullName
 $libraryCp = (Get-ChildItem 'E:\MC\.minecraft\libraries' -Recurse -Filter '*.jar' -File | ForEach-Object FullName) -join ';'
-$compileCp = "$mcSrg;$forgeSrg;$unimixins;$gregtech;$log4jApi;$modularui2;$bq;$libraryCp"
+$compileCp = "$mcSrg;$forgeSrg;$unimixins;$gregtech;$log4jApi;$modularui2;$bq;$lwjgl3ify;$libraryCp"
 
 # ---- clean ----
 foreach ($d in @('build\classes', 'build\stubclasses', 'build\jar', 'dist')) {
