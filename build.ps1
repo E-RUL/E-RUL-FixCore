@@ -1,120 +1,280 @@
-﻿# E-RUL FixCore - build script
-# One command, two branch jars: A = 流程优化版, B = 流程毁灭版.
-# Both come from the same sources; the branch decides which modules are reported (FixModule.branches).
-# No gradle, no network: everything compiles against jars already installed in the pack.
+﻿<#
+.SYNOPSIS
+Builds the E-RUL FixCore JARs offline with JDK 21 or newer.
+.PARAMETER InstanceDir
+GTNH instance directory containing the mods folder. Defaults to FIXCORE_INSTANCE_DIR or the legacy GTNH-2.9.0-B instance.
+.PARAMETER LibrariesDir
+Minecraft libraries directory. Defaults to FIXCORE_LIBRARIES_DIR or the closest libraries folder above the instance.
+.PARAMETER SrgDir
+Directory containing the compile-only minecraft-srg.jar and forge-srg.jar. Defaults to FIXCORE_SRG_DIR, deps\srg, or the legacy remapping directory.
+.PARAMETER JdkHome
+JDK installation directory. Defaults to a compatible JAVA_HOME or a locally installed JDK.
+.PARAMETER Branch
+A, B, or Both. Defaults to Both.
+.EXAMPLE
+.\build.ps1 -InstanceDir 'D:\GTNH\.minecraft' -LibrariesDir 'D:\Launcher\libraries' -SrgDir 'D:\GTNH\srg' -Branch A
+#>
+[CmdletBinding()]
+param(
+    [string] $InstanceDir = $env:FIXCORE_INSTANCE_DIR,
+    [string] $LibrariesDir = $env:FIXCORE_LIBRARIES_DIR,
+    [string] $SrgDir = $env:FIXCORE_SRG_DIR,
+    [string] $JdkHome,
+    [ValidateSet('A', 'B', 'Both')]
+    [string] $Branch = 'Both'
+)
 
 $ErrorActionPreference = 'Stop'
-$root = Split-Path -Parent $MyInvocation.MyCommand.Path
-Set-Location $root
+$root = $PSScriptRoot
+$utf8 = [Text.UTF8Encoding]::new($false)
+$branches = if ($Branch -eq 'Both') { 'A', 'B' } else { $Branch.ToUpperInvariant() }
 
-$sevenZip = 'C:\Program Files\7-Zip\7z.exe'
-$jdkHome = 'E:\MC\jdk21\jdk-21.0.13+9'
-$javac = Join-Path $jdkHome 'bin\javac.exe'
-$mcDir = 'E:\MC\.minecraft\versions\GTNH-2.9.0-B'
+function Invoke-JdkTool {
+    param([string] $Tool, [string] $ArgumentFile, [string[]] $Arguments, [string] $Step)
 
-foreach ($p in @($sevenZip, $javac)) {
-    if (-not (Test-Path -LiteralPath $p)) { throw "missing tool: $p" }
+    # Argument files avoid the Windows command-line limit for a full launcher classpath.
+    $lines = foreach ($argument in $Arguments) {
+        '"' + $argument.Replace('\', '\\').Replace('"', '\"') + '"'
+    }
+    [IO.File]::WriteAllLines($ArgumentFile, [string[]] $lines, $utf8)
+    & $Tool "@$ArgumentFile"
+    if ($LASTEXITCODE -ne 0) { throw "$Step failed (exit code $LASTEXITCODE)." }
 }
 
-$version = (Get-Content (Join-Path $root 'version.txt') -Raw).Trim()
-$branches = @('A', 'B')
+if ($JdkHome) {
+    $jdkCandidates = @($JdkHome)
+} else {
+    $javacOnPath = Get-Command -Name javac.exe -CommandType Application -ErrorAction SilentlyContinue |
+        Select-Object -First 1
+    $jdkCandidates = @(
+        $env:JAVA_HOME
+        if ($javacOnPath) { Split-Path -Parent (Split-Path -Parent $javacOnPath.Source) }
+        'E:\MC\jdk21\jdk-21.0.13+9'
+        if ($env:ProgramFiles) {
+            $javaInstalls = Join-Path $env:ProgramFiles 'Java'
+            if (Test-Path -LiteralPath $javaInstalls -PathType Container) {
+                Get-ChildItem -LiteralPath $javaInstalls -Directory -Filter 'jdk-*' |
+                    Sort-Object Name -Descending | ForEach-Object FullName
+            }
+        }
+    )
+}
+$javac = $null
+foreach ($candidate in $jdkCandidates) {
+    if (-not $candidate -or -not (Test-Path -LiteralPath $candidate -PathType Container)) { continue }
+    $jdkBin = Join-Path (Get-Item -LiteralPath $candidate).FullName 'bin'
+    $candidateJavac = Join-Path $jdkBin 'javac.exe'
+    $candidateJar = Join-Path $jdkBin 'jar.exe'
+    if (-not (Test-Path -LiteralPath $candidateJavac -PathType Leaf) -or
+        -not (Test-Path -LiteralPath $candidateJar -PathType Leaf)) { continue }
+    $javacVersion = & $candidateJavac -version
+    if ($LASTEXITCODE -ne 0 -or $javacVersion -notmatch '^javac (\d+)' -or [int] $Matches[1] -lt 21) { continue }
+    $javac = $candidateJavac
+    $jar = $candidateJar
+    break
+}
+if (-not $javac) {
+    if ($JdkHome) { throw "JDK 21 or newer with javac.exe and jar.exe is required at '$JdkHome'." }
+    throw 'JDK 21 or newer was not found. Set -JdkHome or JAVA_HOME to the JDK installation directory.'
+}
+
+if (-not $InstanceDir) {
+    $instanceCandidates = @(
+        'E:\MC\.minecraft\versions\GTNH-2.9.0-B'
+        if ($env:APPDATA) { Join-Path $env:APPDATA '.minecraft\versions\GTNH-2.9.0-B' }
+    )
+    $InstanceDir = $instanceCandidates | Where-Object {
+        Test-Path -LiteralPath ([IO.Path]::Combine($_, 'mods')) -PathType Container
+    } | Select-Object -First 1
+}
+if (-not $InstanceDir -or -not (Test-Path -LiteralPath $InstanceDir -PathType Container)) {
+    throw 'GTNH instance was not found. Set -InstanceDir or FIXCORE_INSTANCE_DIR to the directory containing mods.'
+}
+$instance = Get-Item -LiteralPath $InstanceDir
+$modsDir = Join-Path $instance.FullName 'mods'
+if (-not (Test-Path -LiteralPath $modsDir -PathType Container)) { throw "GTNH mods directory not found: $modsDir" }
+
+if (-not $LibrariesDir) {
+    for ($parent = $instance; $parent -and -not $LibrariesDir; $parent = $parent.Parent) {
+        $candidate = Join-Path $parent.FullName 'libraries'
+        if (Test-Path -LiteralPath $candidate -PathType Container) { $LibrariesDir = $candidate }
+    }
+}
+if (-not $LibrariesDir -or -not (Test-Path -LiteralPath $LibrariesDir -PathType Container)) {
+    throw 'Minecraft libraries were not found. Set -LibrariesDir or FIXCORE_LIBRARIES_DIR.'
+}
+$LibrariesDir = (Get-Item -LiteralPath $LibrariesDir).FullName
+
+$srgNames = 'minecraft-srg.jar', 'forge-srg.jar'
+if (-not $SrgDir) {
+    $srgCandidates = (Join-Path $root 'deps\srg'), 'E:\MC\_work\90_待清理\bq-editor-compile'
+    $SrgDir = $srgCandidates | Where-Object {
+        (Test-Path -LiteralPath ([IO.Path]::Combine($_, $srgNames[0])) -PathType Leaf) -and
+        (Test-Path -LiteralPath ([IO.Path]::Combine($_, $srgNames[1])) -PathType Leaf)
+    } | Select-Object -First 1
+}
+if (-not $SrgDir -or -not (Test-Path -LiteralPath $SrgDir -PathType Container)) {
+    throw 'Set -SrgDir or FIXCORE_SRG_DIR to the directory containing the compile-only minecraft-srg.jar and forge-srg.jar.'
+}
+$SrgDir = (Get-Item -LiteralPath $SrgDir).FullName
+$srgJars = foreach ($name in $srgNames) {
+    $path = Join-Path $SrgDir $name
+    if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { throw "Missing SRG compile dependency: $path" }
+    $path
+}
+
+$auxiliaryJar = '-(?:sources|javadoc|dev|dev-preshadow|predowngrade|natives(?:-[^.]+)?)\.jar$'
+$mods = @(Get-ChildItem -LiteralPath $modsDir -Filter '*.jar' -File |
+    Where-Object Name -NotMatch $auxiliaryJar | Sort-Object Name)
+$requiredMods = [ordered] @{
+    UniMixins      = '*unimixins*.jar'
+    GregTech       = 'gregtech-*.jar'
+    ModularUI2     = 'modularui2-*.jar'
+    BetterQuesting = 'BetterQuesting-*.jar'
+}
+$modJars = foreach ($entry in $requiredMods.GetEnumerator()) {
+    $matchesForMod = @($mods | Where-Object Name -Like $entry.Value)
+    if ($entry.Key -eq 'UniMixins') {
+        $allInOne = @($matchesForMod | Where-Object Name -Like '*unimixins-all*.jar')
+        if ($allInOne.Count -gt 0) { $matchesForMod = $allInOne }
+    }
+    if ($matchesForMod.Count -eq 0) { throw "Missing $($entry.Key) ($($entry.Value)) in $modsDir." }
+    $matchesForMod[0].FullName
+}
+$gtnhLib = $mods | Where-Object Name -Like 'gtnhlib-*.jar' | Select-Object -First 1
+if ($gtnhLib) { $modJars += $gtnhLib.FullName }
+
+$libraryJars = @(Get-ChildItem -LiteralPath $LibrariesDir -Recurse -Filter '*.jar' -File |
+    Where-Object Name -NotMatch $auxiliaryJar | Sort-Object FullName -Descending)
+$log4jApi = $libraryJars | Where-Object Name -Like 'log4j-api-*.jar' | Select-Object -First 1
+if (-not $log4jApi) { throw "Missing log4j-api JAR in $LibrariesDir." }
+$compileJars = @($srgJars) + @($modJars) + @($log4jApi.FullName) + @($libraryJars.FullName)
+$compileClasspath = ($compileJars | Select-Object -Unique) -join [IO.Path]::PathSeparator
+
+$version = [IO.File]::ReadAllText((Join-Path $root 'version.txt'), $utf8).Trim()
+if ($version -notmatch '^[A-Za-z0-9][A-Za-z0-9._+-]*$') { throw "Invalid version.txt value: '$version'." }
+$sourceDir = Join-Path $root 'src\main'
+$sources = @(Get-ChildItem -LiteralPath (Join-Path $sourceDir 'java') -Recurse -Filter '*.java' -File |
+    Sort-Object FullName | ForEach-Object FullName)
+if ($sources.Count -eq 0) { throw "No Java source files were found in $sourceDir." }
+$stubSources = @(Get-ChildItem -LiteralPath (Join-Path $sourceDir 'stubs') -Recurse -Filter '*.java' -File |
+    Sort-Object FullName | ForEach-Object FullName)
+# ENV payloads are generated separately by their dedicated tools.
+$resourceDir = Join-Path $sourceDir 'resources'
+$manifest = [IO.File]::ReadAllText((Join-Path $resourceDir 'MANIFEST.MF'), $utf8)
+$lf = [string] [char] 10
+$crlf = [string] [char] 13 + $lf
+$manifest = $manifest.Replace($crlf, $lf).Replace($lf, $crlf)
+$modInfoTemplate = [IO.File]::ReadAllText((Join-Path $resourceDir 'mcmod.info'), $utf8)
+
 Write-Host "== E-RUL FixCore $version (branches: $($branches -join '/')) ==" -ForegroundColor Cyan
+Write-Host "  $javacVersion"
+Write-Host "  GTNH instance: $($instance.FullName)"
+$stage = Join-Path $root ('.fixcore-build-' + [guid]::NewGuid().ToString('N'))
+New-Item -ItemType Directory -Path $stage | Out-Null
+$keepStage = $false
+try {
+    $argumentFile = Join-Path $stage 'jdk.args'
+    $artifacts = (New-Item -ItemType Directory -Path (Join-Path $stage 'artifacts')).FullName
+    if ($stubSources.Count -gt 0) {
+        $stubClasses = (New-Item -ItemType Directory -Path (Join-Path $stage 'stubclasses')).FullName
+        $stubArgs = @('--release', '8', '-encoding', 'UTF-8', '-nowarn', '-proc:none', '-d', $stubClasses) + $stubSources
+        Invoke-JdkTool $javac $argumentFile $stubArgs 'Stub compilation'
+        $compileClasspath += [IO.Path]::PathSeparator + $stubClasses
+    }
 
-# ---- dependency jars (globbed so a pack update does not break the build) ----
-$forge = (Get-ChildItem 'E:\MC\.minecraft\libraries\net\minecraftforge\forge' -Recurse -Filter '*universal.jar' -File |
-    Sort-Object FullName -Descending | Select-Object -First 1).FullName
-$unimixins = (Get-ChildItem (Join-Path $mcDir 'mods') -Filter '*unimixins*.jar' -File | Select-Object -First 1).FullName
-$gregtech = (Get-ChildItem (Join-Path $mcDir 'mods') -Filter 'gregtech-*.jar' -File | Select-Object -First 1).FullName
-$log4jApi = (Get-ChildItem 'E:\MC\.minecraft\libraries\org\apache\logging\log4j\log4j-api' -Recurse -Filter 'log4j-api-*.jar' -File |
-    Sort-Object FullName -Descending | Select-Object -First 1).FullName
-foreach ($dep in @($forge, $unimixins, $gregtech, $log4jApi)) {
-    if (-not $dep -or -not (Test-Path -LiteralPath $dep)) { throw "dependency not found: $dep" }
-    Write-Host ("  dep: " + (Split-Path $dep -Leaf))
-}
-$modularui2 = (Get-ChildItem (Join-Path $mcDir 'mods') -Filter 'modularui2-*.jar' -File | Select-Object -First 1).FullName
-$editorCompile = 'E:\MC\_work\90_待清理\bq-editor-compile'
-$mcSrg = Join-Path $editorCompile 'minecraft-srg.jar'
-$forgeSrg = Join-Path $editorCompile 'forge-srg.jar'
-if (-not (Test-Path -LiteralPath $mcSrg) -or -not (Test-Path -LiteralPath $forgeSrg)) { throw 'Run prepare-bq-editor-compile-20261120.py and RemapCompileJar first; mapped jars are compile-only' }
-$bq = (Get-ChildItem (Join-Path $mcDir 'mods') -Filter 'BetterQuesting-*.jar' -File | Select-Object -First 1).FullName
-$libraryCp = (Get-ChildItem 'E:\MC\.minecraft\libraries' -Recurse -Filter '*.jar' -File | ForEach-Object FullName) -join ';'
-$compileCp = "$mcSrg;$forgeSrg;$unimixins;$gregtech;$log4jApi;$modularui2;$bq;$libraryCp"
-
-# ---- clean ----
-foreach ($d in @('build\classes', 'build\stubclasses', 'build\jar', 'dist')) {
-    if (Test-Path -LiteralPath $d) { Remove-Item -LiteralPath $d -Recurse -Force }
-}
-New-Item -ItemType Directory -Path 'build\classes', 'build\stubclasses', 'build\jar', 'dist' -Force | Out-Null
-New-Item -ItemType Directory -Path 'src\generated\com\erul\fixcore' -Force | Out-Null
-
-# ---- stubs compile once ----
-$stubSrc = Get-ChildItem 'src\main\stubs' -Recurse -Filter '*.java' -File | ForEach-Object { $_.FullName }
-if ($stubSrc) {
-    & $javac --release 8 -nowarn -d 'build\stubclasses' $stubSrc
-    if ($LASTEXITCODE -ne 0) { throw 'stub compile failed' }
-}
-
-$mainSrc = (Get-ChildItem 'src\main\java' -Recurse -Filter '*.java' -File | ForEach-Object { $_.FullName })
-
-# ENV payloads are version-specific and are generated by their dedicated tools, not by the core JAR build.
-
-$results = @()
-foreach ($branch in $branches) {
-    Write-Host ""
-    Write-Host "  --- branch $branch ---" -ForegroundColor Cyan
-
-    # generated version source (branch is a compile-time constant)
-    $verSrc = @"
+    $results = foreach ($targetBranch in $branches) {
+        Write-Host "  --- branch $targetBranch ---" -ForegroundColor Cyan
+        $branchDir = (New-Item -ItemType Directory -Path (Join-Path $stage $targetBranch)).FullName
+        $versionSource = Join-Path $stage 'Version.java'
+        $versionCode = @"
 package com.erul.fixcore;
 
-/** Generated by build.ps1 from version.txt - do not edit. */
 public final class Version {
-
     public static final String VERSION = "$version";
-    public static final String BRANCH = "$branch";
+    public static final String BRANCH = "$targetBranch";
 
     private Version() {}
 }
 "@
-    [System.IO.File]::WriteAllText(
-        (Join-Path $root 'src\generated\com\erul\fixcore\Version.java'),
-        $verSrc,
-        (New-Object System.Text.UTF8Encoding($false)))
+        [IO.File]::WriteAllText($versionSource, $versionCode, $utf8)
 
-    if (Test-Path 'build\classes') { Remove-Item 'build\classes' -Recurse -Force }
-    New-Item -ItemType Directory 'build\classes' -Force | Out-Null
+        $compileArgs = @('--release', '8', '-encoding', 'UTF-8', '-nowarn', '-proc:none',
+            '-classpath', $compileClasspath, '-d', $branchDir) + $sources + $versionSource
+        Invoke-JdkTool $javac $argumentFile $compileArgs "Compilation for branch $targetBranch"
+        Write-Host "  compiled $($sources.Count + 1) source file(s)"
 
-    $allSrc = $mainSrc + (Join-Path $root 'src\generated\com\erul\fixcore\Version.java')
-    & $javac --release 8 -encoding UTF-8 -nowarn -proc:none -cp "$compileCp;build\stubclasses" -d 'build\classes' $allSrc
-    if ($LASTEXITCODE -ne 0) { throw "compile failed (branch $branch)" }
-    Write-Host ("  compiled {0} source file(s)" -f $allSrc.Count)
+        $metaInf = (New-Item -ItemType Directory -Path (Join-Path $branchDir 'META-INF')).FullName
+        [IO.File]::WriteAllText((Join-Path $metaInf 'MANIFEST.MF'), $manifest, $utf8)
+        $modInfo = $modInfoTemplate.Replace('@VERSION@', $version).Replace('@BRANCH@', $targetBranch)
+        [IO.File]::WriteAllText((Join-Path $branchDir 'mcmod.info'), $modInfo, $utf8)
+        Copy-Item -LiteralPath (Join-Path $resourceDir 'mixins.erulfixcore.json') -Destination $branchDir
 
-    # assemble
-    if (Test-Path 'build\jar') { Remove-Item 'build\jar' -Recurse -Force }
-    New-Item -ItemType Directory 'build\jar\META-INF' -Force | Out-Null
-    Copy-Item 'build\classes\*' 'build\jar' -Recurse -Force
-    Copy-Item 'src\main\resources\mixins.erulfixcore.json' 'build\jar' -Force
-    $manifestText = (Get-Content 'src\main\resources\MANIFEST.MF' -Raw).Replace("`r`n", "`n").Replace("`n", "`r`n")
-    [System.IO.File]::WriteAllText((Join-Path $root 'build\jar\META-INF\MANIFEST.MF'), $manifestText, (New-Object System.Text.UTF8Encoding($false)))
+        $jarName = "E-RUL-FixCore-$version-$targetBranch.jar"
+        $jarPath = Join-Path $artifacts $jarName
+        $jarEntries = [string[]] @(Get-ChildItem -LiteralPath $branchDir -Recurse -File | ForEach-Object {
+            $_.FullName.Substring($branchDir.Length + 1).Replace('\', '/')
+        })
+        [Array]::Sort($jarEntries, [StringComparer]::Ordinal)
+        $jarArgs = @('--create', '--no-manifest', '--date=1980-01-02T00:00:00Z', '--file', $jarPath) + $jarEntries
+        Push-Location -LiteralPath $branchDir
+        try { Invoke-JdkTool $jar $argumentFile $jarArgs "Packaging for branch $targetBranch" }
+        finally { Pop-Location }
 
-    $modInfo = [System.IO.File]::ReadAllText(
-        (Join-Path $root 'src\main\resources\mcmod.info'),
-        (New-Object System.Text.UTF8Encoding($false))).Replace('@VERSION@', $version).Replace('@BRANCH@', $branch)
-    [System.IO.File]::WriteAllText((Join-Path $root 'build\jar\mcmod.info'), $modInfo, (New-Object System.Text.UTF8Encoding($false)))
+        $hash = (Get-FileHash -LiteralPath $jarPath -Algorithm SHA256).Hash
+        Set-Content -LiteralPath "$jarPath.sha256" -Value "$hash  $jarName" -Encoding ASCII
+        [pscustomobject] @{ Branch = $targetBranch; Jar = $jarName; Bytes = (Get-Item -LiteralPath $jarPath).Length; Sha256 = $hash }
+    }
 
-    $jarName = "E-RUL-FixCore-$version-$branch.jar"
-    $jarPath = Join-Path $root "dist\$jarName"
-    Push-Location 'build\jar'
+    # Publish only after every selected branch has built successfully.
+    $dist = (New-Item -ItemType Directory -Path (Join-Path $root 'dist') -Force).FullName
+    $backup = (New-Item -ItemType Directory -Path (Join-Path $stage 'previous')).FullName
+    $lockPath = Join-Path $dist '.fixcore-build.lock'
     try {
-        & $sevenZip a -tzip -mx=9 -mcu=on -mtm=off -mtc=off -mta=off $jarPath '*' | Out-Null
-    } finally { Pop-Location }
-    if (-not (Test-Path -LiteralPath $jarPath)) { throw "jar not produced (branch $branch)" }
+        $lock = [IO.FileStream]::new($lockPath, [IO.FileMode]::OpenOrCreate, [IO.FileAccess]::ReadWrite,
+            [IO.FileShare]::None, 4096, [IO.FileOptions]::DeleteOnClose)
+    } catch [IO.IOException] {
+        throw "Could not lock $dist for publishing. Check whether another build is publishing there. $($_.Exception.Message)"
+    }
+    try {
+        $published = [Collections.Generic.List[string]]::new()
+        try {
+            foreach ($artifact in (Get-ChildItem -LiteralPath $artifacts -File | Sort-Object Name)) {
+                $target = Join-Path $dist $artifact.Name
+                if ([IO.File]::Exists($target)) {
+                    [IO.File]::Replace($artifact.FullName, $target, (Join-Path $backup $artifact.Name))
+                } else {
+                    [IO.File]::Move($artifact.FullName, $target)
+                }
+                $published.Add($artifact.Name)
+            }
+        } catch {
+            foreach ($name in $published) {
+                $target = Join-Path $dist $name
+                $previous = Join-Path $backup $name
+                try {
+                    if ([IO.File]::Exists($previous)) {
+                        [IO.File]::Replace($previous, $target, (Join-Path $stage "discarded-$name"))
+                    } else {
+                        [IO.File]::Delete($target)
+                    }
+                } catch {
+                    $keepStage = $true
+                    Write-Warning "Could not restore $target. Build staging is retained at $stage."
+                }
+            }
+            throw
+        }
+    } finally {
+        $lock.Dispose()
+    }
 
-    $hash = (Get-FileHash -LiteralPath $jarPath -Algorithm SHA256).Hash
-    Set-Content -LiteralPath (Join-Path $root "dist\$jarName.sha256") -Value "$hash  $jarName" -Encoding ASCII
-    $results += [pscustomobject]@{ Branch = $branch; Jar = $jarName; Bytes = (Get-Item $jarPath).Length; Sha256 = $hash }
+    Write-Host "== result ==" -ForegroundColor Green
+    $results | Format-Table Branch, Jar, Bytes, Sha256 -AutoSize | Out-String | Write-Host
+} finally {
+    $stageItem = Get-Item -LiteralPath $stage -Force -ErrorAction SilentlyContinue
+    if ($stageItem -and -not $keepStage -and -not $stageItem.Attributes.HasFlag([IO.FileAttributes]::ReparsePoint) -and
+        $stageItem.FullName -eq $stage -and $stageItem.Parent.FullName -eq $root) {
+        Remove-Item -LiteralPath $stage -Recurse -Force
+    }
 }
-
-Write-Host ""
-Write-Host "== result ==" -ForegroundColor Green
-$results | Format-Table Branch, Jar, Bytes, Sha256 -AutoSize | Out-String | Write-Host

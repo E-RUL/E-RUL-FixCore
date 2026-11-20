@@ -16,7 +16,7 @@ GTNH 2.9.0 私货覆盖包的**唯一补丁入口**。原来散落的三个附�
 
 主项目仓库中的 `_work/00_工程/E-RUL-FixCore` 是唯一工作副本，通过 Git subtree split 发布为独立仓库根目录。修改核心后，从主项目根目录运行 `python _work/40_工具/现役/sync-fixcore-repos.py`，检查模式用 `--check`。脚本不自动提交、不强推，会核验远端核心文件树与主项目完全一致。不要在独立仓库直接改动后覆盖推送；若存在独立提交，需先合并回主项目。
 
-离线构建仍需本地 GTNH 2.9.0、JDK21、7-Zip 和临时 SRG 编译接口。单独克隆本仓库不会自带 Minecraft/Forge 或其他模组依赖。历史 2.4.0 说明如下，不能作为当前安装状态。
+离线构建需要本地 GTNH 2.9.0、JDK 21 或更新版本，以及 SRG 编译依赖。单独克隆本仓库不会自带 Minecraft/Forge 或其他模组依赖。历史 2.4.0 说明如下，不能作为当前安装状态。
 
 ## 2.4.0 历史说明
 
@@ -40,7 +40,7 @@ V1.1 包和 Git 均按用户要求暂停。详情见 `../接续/10_ME控制器�
 ```
 E-RUL-FixCore/
 ├── version.txt                  版本唯一源（改这里，构建时自动生成 Version.java 并写进 mcmod.info）
-├── build.ps1                    一键构建：javac(JDK21, --release 8) -> 7z 打包 -> sha256
+├── build.ps1                    用 javac（--release 8）编译，用 JDK jar 打包并生成 SHA-256
 ├── src/
 │   ├── main/java/com/erul/fixcore/
 │   │   ├── FixCoreMod.java      @Mod 入口，只负责在 preInit 打印模块表
@@ -52,8 +52,7 @@ E-RUL-FixCore/
 │   │   ├── module/              每个补丁一个描述类
 │   │   └── mixin/               真正的字节码补丁
 │   ├── main/resources/          mcmod.info / mixins.erulfixcore.json / MANIFEST.MF
-│   ├── main/stubs/              编译期占位（不打包，例如 net.minecraft.util.EnumChatFormatting）
-│   └── generated/               build.ps1 生成，不要手改
+│   └── main/stubs/              编译期占位（不打包，例如 net.minecraft.util.EnumChatFormatting）
 ├── patches/                     ENV 补丁素材
 │   ├── log4j/ThrowableProxy.java
 │   └── messtech/mcmod.info
@@ -154,14 +153,23 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools\verify.ps1 -Branch B
 - **Apeiron 的配方概率联动**：`gtnl-apecore` 是「降级成原版行为」，不是「恢复功能」——恢复要等 Apeiron 适配 GTNL 新 API。
 - **MessTech 的 `ArcaneSlate` 判定**：那是 MessTech 自己的注册时序问题，核心只保证它不再致命，不替它修逻辑。
 
-## 8. 构建依赖（都是本地现成的，不联网）
+## 8. 离线构建
+
+默认构建 A、B 两版，JAR 和 SHA-256 文件输出到 `dist/`。原有的 `E:\MC` 环境可以直接运行脚本。使用其他目录时，可传入本机路径。以下示例只构建 A 版。
+
+```powershell
+.\build.ps1 -InstanceDir 'D:\GTNH\.minecraft' -LibrariesDir 'D:\Launcher\libraries' -SrgDir 'D:\GTNH\srg' -Branch A
+```
+
+可通过 `FIXCORE_INSTANCE_DIR`、`FIXCORE_LIBRARIES_DIR` 和 `FIXCORE_SRG_DIR` 设置默认路径。省略 `-LibrariesDir` 时，脚本从实例目录向上寻找 `libraries`。可用 `-JdkHome` 或 `JAVA_HOME` 指定 JDK。
 
 | 依赖 | 来源 |
 |---|---|
-| javac 21 | `E:\MC\jdk21\jdk-21.0.13+9` |
-| Forge universal | `.minecraft\libraries\net\minecraftforge\forge\...` |
+| JDK 21 或更新版本 | 同一套 JDK 的 `javac` 和 `jar` |
+| SRG 编译依赖 | `-SrgDir` 下的 `minecraft-srg.jar` 和 `forge-srg.jar`，也可放入 `deps/srg/` |
 | unimixins（mixin API） | 实例 `mods\+unimixins-all-*.jar` |
 | GregTech | 实例 `mods\gregtech-*.jar` |
-| log4j-api | `.minecraft\libraries\org\apache\logging\log4j\log4j-api\...` |
+| ModularUI2、BetterQuesting | 实例 `mods` 目录 |
+| log4j-api | `libraries` 目录 |
 
 全部用 glob 定位，整合包升级换版本号不用改脚本。编译带 `-proc:none`：unimixins 自带的 Mixin 注解处理器会强制在编译期解析 `@Mixin(targets=...)`，对可选模组做不到。
