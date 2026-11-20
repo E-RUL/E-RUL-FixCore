@@ -30,6 +30,7 @@ public final class FixRegistry {
         // Order matters only for the startup table: JAR fixes first, then ENV ones.
         list.add(new GtnlModListModule());
         list.add(new FissionTooltipModule());
+        list.add(new com.erul.fixcore.module.PumpQueueParallelModule());
         list.add(new Log4jThrowableModule());
         list.add(new MessTechMetadataModule());
         list.add(new GtnrDuplicateMixinModule());
