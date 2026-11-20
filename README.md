@@ -8,7 +8,17 @@ GTNH 2.9.0 私货覆盖包的**唯一补丁入口**。原来散落的三个附�
 
 ---
 
-## 2.4.0 最新说明
+## 当前版本与源码仓库
+
+当前版本 **2.7.2**。包含 A/B 核心修复、Apeiron 太空泵队列兼容，以及 B 专用 BQ 中文任务工作台（`/erulbq`）。具体功能及验证边界见 [工作台说明](BQ工作台使用说明.md)。游戏测试状态以用户反馈为准。
+
+独立源码仓库：<https://github.com/E-RUL/E-RUL-FixCore>（公开）。仅包含本核心源码、构建/安装工具、补丁素材与核心文档，不包含整合包工程、游戏实例、依赖下载件或发行包。目录组织参考 GTNL 的根说明 + `src/` 布局；沿用本项目离线工具链，不引入 Gradle 联网构建。
+
+主项目仓库中的 `_work/00_工程/E-RUL-FixCore` 是唯一工作副本，通过 Git subtree split 发布为独立仓库根目录。修改核心后，从主项目根目录运行 `python _work/40_工具/现役/sync-fixcore-repos.py`，检查模式用 `--check`。脚本不自动提交、不强推，会核验远端核心文件树与主项目完全一致。不要在独立仓库直接改动后覆盖推送；若存在独立提交，需先合并回主项目。
+
+离线构建仍需本地 GTNH 2.9.0、JDK21、7-Zip 和临时 SRG 编译接口。单独克隆本仓库不会自带 Minecraft/Forge 或其他模组依赖。历史 2.4.0 说明如下，不能作为当前安装状态。
+
+## 2.4.0 历史说明
 
 新增 B 专用 `tenkei-ae2-redirect`（ENV），入口 `tools/patch-tenkei-ae2.ps1`。TenkeiTech 与 Apeiron 抢 AE2 CraftingCPUCluster 的 pushPattern 调用点，前者显式 require=1 不受 defaultRequire=0 影响。修复仅将该注解改 0，保留 Apeiron 和 eco；Tenkei 该超级接口派发路径会兼容降级。真实 Mixin 单目标转换对照通过，游戏内复测仍待用户确认。B 已装 2.4.0，A 实例未升级。仅更新核心 jar 不等于应用 ENV 补丁。
 

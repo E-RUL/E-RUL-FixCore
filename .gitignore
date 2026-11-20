@@ -1,0 +1,14 @@
+# Local build outputs and runtime dependencies
+/build/
+/dist/
+/legacy/
+/src/generated/
+__pycache__/
+*.pyc
+*.jar
+*.zip
+*.7z
+*.log
+*.orig-backup
+*.pre-erul-*-backup
+# Class files under patches are intentional runtime patch inputs.

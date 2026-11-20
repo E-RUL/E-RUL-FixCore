@@ -1,0 +1,7 @@
+# Keep exact working-tree bytes; PowerShell scripts require UTF-8 BOM.
+* -text
+*.java diff
+*.ps1 diff
+*.md diff
+*.json diff
+*.class binary
