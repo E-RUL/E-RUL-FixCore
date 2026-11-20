@@ -11,7 +11,7 @@ import betterquesting.api2.client.gui.misc.GuiRectangle;
 import betterquesting.api2.client.gui.panels.content.PanelTextBox;
 import betterquesting.network.handlers.NetChapterEdit;
 /** Chapter definitions are cloned. Connections modify the parent quest draft only. */
-public final class ChapterWorkbench extends GuiScreenCanvas {
+public final class ChapterWorkbench extends WorkbenchScreen {
  private UUID chapterId,selected;private QuestLine chapter;private NBTTagCompound baseline,pending;
  private int offsetX=180,offsetY=120,dragX,dragY,chapterPage;private boolean dragging;private long saveAt;private String status="拖动移动；Shift 点击为工作台当前任务添加前置。";
  private final Map<UUID,GuiRectangle> nodes=new LinkedHashMap<>();

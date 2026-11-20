@@ -12,7 +12,7 @@ import betterquesting.api.questing.tasks.ITask;
 import betterquesting.api.questing.rewards.IReward;
 import betterquesting.questing.tasks.TaskRegistry;
 import betterquesting.questing.rewards.RewardRegistry;
-public final class TypePicker extends GuiScreenCanvas {
+public final class TypePicker extends WorkbenchScreen {
  private final boolean tasks;private final Consumer<Object> selected;private int page;private WorkbenchField filter;private String query="";
  public TypePicker(GuiScreen p,boolean tasks,Consumer<Object> selected){super(p);this.tasks=tasks;this.selected=selected;useMargins(false);}
  private void btn(int x,int y,int w,String text,Runnable r){addPanel(new PanelButton(new GuiRectangle(x,y,w,18),0,text).setClickAction(b->r.run()));}

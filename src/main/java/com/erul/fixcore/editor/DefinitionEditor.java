@@ -12,7 +12,7 @@ import betterquesting.api2.storage.INBTSaveLoad;
 import betterquesting.client.gui2.editors.nbt.GuiNbtEditor;
 import bq_standard.tasks.TaskRetrieval;
 /** Localized scalar inspector for any registered task/reward definition. */
-public final class DefinitionEditor extends GuiScreenCanvas {
+public final class DefinitionEditor extends WorkbenchScreen {
  private final INBTSaveLoad<NBTTagCompound> target;private NBTTagCompound data,original;private boolean returningFromItems;private int page;private String status="应用到草稿后，仍需在工作台保存";private final Map<String,PanelTextField<String>> fields=new LinkedHashMap<>();
  @SuppressWarnings("unchecked") public DefinitionEditor(GuiScreen p,Object obj){super(p);target=(INBTSaveLoad<NBTTagCompound>)obj;data=target.writeToNBT(new NBTTagCompound());original=(NBTTagCompound)data.func_74737_b();useMargins(false);}
  static String title(String k){Map<String,String>m=new HashMap<>();String[][]pairs={{"consume","消耗提交物品/流体"},{"autoConsume","自动提交"},{"groupDetect","共享检测"},{"ignoreNBT","忽略NBT"},{"ignoreNbt","忽略NBT"},{"partialMatch","允许部分NBT匹配"},{"required","要求数量"},{"idName","实体注册名"},{"damageType","伤害类型"},{"subtypes","匹配子类型"},{"requiredItems","所需物品"},{"requiredFluids","所需流体"},{"rewards","奖励物品"},{"targetTags","实体NBT条件"},{"taskID","条件类型ID"},{"rewardID","奖励类型ID"},{"amount","数量"},{"dimension","维度"},{"range","范围"},{"x","X坐标"},{"y","Y坐标"},{"z","Z坐标"},{"ignoreDamage","忽略耐久/元数据"},{"requireOnlyOneItem","任一物品即可"},{"index","条目编号"}};for(String[]p:pairs)m.put(p[0],p[1]);return m.getOrDefault(k,"扩展参数")+" §8["+k+"]";}

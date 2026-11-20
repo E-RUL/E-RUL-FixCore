@@ -10,7 +10,7 @@ import betterquesting.api2.client.gui.misc.GuiRectangle;
 import betterquesting.api2.client.gui.panels.content.PanelTextBox;
 import betterquesting.client.gui2.editors.nbt.GuiItemSelection;
 /** Direct draft list editor; no database/network access. */
-public final class ItemListEditor extends GuiScreenCanvas {
+public final class ItemListEditor extends WorkbenchScreen {
  private final List<BigItemStack> items;private int page;private String message="物品与NBT保留在草稿中，返回工作台保存才生效";
  public ItemListEditor(GuiScreen parent,List<BigItemStack> items){super(parent);this.items=items;useMargins(false);}
  private void button(int x,int y,int w,String s,Runnable r){addPanel(new PanelButton(new GuiRectangle(x,y,w,18),0,s).setClickAction(b->{try{r.run();}catch(Exception e){message=e.getMessage();redraw();}}));}
