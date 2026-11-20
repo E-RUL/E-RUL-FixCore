@@ -68,16 +68,16 @@ public final class FixRegistry {
     }
 
     public static void report(Logger log) {
-        String branch = Version.BRANCH;
+        List<FixModule> modules = modules(Version.BRANCH);
         log.info(
             "===== {} {} (modid {}, {} 个补丁) =====",
             FixCoreMod.NAME,
             Version.VERSION,
             FixCoreMod.MODID,
-            modules(branch).size());
+            modules.size());
         int active = 0;
         int manual = 0;
-        for (FixModule m : modules(branch)) {
+        for (FixModule m : modules) {
             boolean on = m.applicable();
             String state;
             if (m.kind() == FixKind.JAR) {
