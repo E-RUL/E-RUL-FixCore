@@ -1,0 +1,13 @@
+{
+  "required": false,
+  "minVersion": "0.8",
+  "package": "com.erul.fixcore.mixin",
+  "compatibilityLevel": "JAVA_8",
+  "mixins": [
+    "MixinGtnlRecipeChances",
+    "MixinMultiblockTooltipBuilder"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}

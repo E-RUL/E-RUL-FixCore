@@ -1,0 +1,21 @@
+{
+  "modListVersion": 2,
+  "modList": [{
+    "modid": "erulfixcore",
+    "name": "E-RUL 的私货修复核心 @BRANCH@ 版",
+    "description": "Private-pack compatibility fixes. Branch A serves the 流程优化版 instance, branch B adds the 流程毁灭版 extras. The startup table lists every module of the current branch and its state.",
+    "version": "@VERSION@",
+    "mcversion": "1.7.10",
+    "url": "https://github.com/E-RUL",
+    "updateUrl": "",
+    "authorList": ["E-RUL"],
+    "credits": "",
+    "logoFile": "",
+    "screenshots": [],
+    "parent": "",
+    "requiredMods": [],
+    "dependencies": [],
+    "dependants": [],
+    "useDependencyInformation": false
+  }]
+}

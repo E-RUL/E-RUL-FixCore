@@ -1,0 +1,6 @@
+{
+  "entry": "com/tenkeitech/mixin/ae2/CraftingCPUClusterMixin.class",
+  "originalSha256": "4F7807DCAD3796343EEDD6EE35BE9481D1F6C8B044C75525545052D533FA3A55",
+  "patchedSha256": "675C369620E137D3634A1E4D0AE96C0C73DE8810F2254D4DBFF0406373265BDD",
+  "change": "tenkeitech$pushPatternBatch @Redirect require 1 -> 0"
+}
