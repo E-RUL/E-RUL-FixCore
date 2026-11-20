@@ -8,6 +8,9 @@
     "MixinMultiblockTooltipBuilder",
     "MixinPumpQueueParallel"
   ],
+  "client": [
+    "MixinBqItemSelectionInput"
+  ],
   "injectors": {
     "defaultRequire": 1
   }
